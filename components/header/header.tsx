@@ -3,7 +3,6 @@
 import * as React from 'react'
 import { useContext } from 'react'
 import Link from 'next/link'
-import { FaGithub } from 'react-icons/fa6'
 import { HiOutlineMenu } from 'react-icons/hi'
 import ChatContext from '@/components/chat/chatContext'
 import ThemeToggle from '@/components/theme/toggle'
@@ -37,14 +36,6 @@ export const Header = () => {
         <div className="flex items-center gap-2 sm:gap-4">
           <nav className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />
-            <a
-              href="https://github.com/blrchen/chatgpt-lite"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-full p-2 transition-colors hover:bg-accent text-foreground"
-            >
-              <FaGithub className="text-xl" />
-            </a>
           </nav>
         </div>
       </div>
