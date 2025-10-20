@@ -29,7 +29,7 @@ export const Header = () => {
           </Button>
           <Link href="/" className="flex items-center cursor-pointer select-none">
             <h2 className="text-lg font-semibold text-foreground max-w-[120px] sm:max-w-[200px] truncate">
-              ChatGPT Lite
+              NokkenTalk
             </h2>
           </Link>
         </div>
