@@ -16,33 +16,91 @@ export async function POST(req: NextRequest) {
       input: string
     }
 
-    let ragContext = ''
     const backendUrl = process.env.BACKEND_API_URL || 'http://localhost:3000'
 
-    try {
-      const ragResponse = await fetch(`${backendUrl}/documents/public/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: input,
-          topK: 3
-        })
-      })
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ||
+               req.headers.get('x-real-ip') ||
+               '127.0.0.1'
 
-      if (ragResponse.ok) {
-        const ragData = await ragResponse.json()
-        if (ragData.results && ragData.results.length > 0) {
-          ragContext = '\n\nRelevant information from knowledge base:\n'
-          ragData.results.forEach((result: any, idx: number) => {
-            ragContext += `${idx + 1}. ${result.chunkText}\n\n`
-          })
-        }
+    let countryCode = 'HK'// Default fallback
+    try {
+      const geoResponse = await fetch(`${backendUrl}/geolocation/ip/${ip}`)
+      if (geoResponse.ok) {
+        const geoData = await geoResponse.json()
+        countryCode = geoData.countryCode || 'HK'
+        console.log(`IP ${ip} resolved to country: ${countryCode}`)
       }
     } catch (error) {
-      console.error('RAG query failed, continuing without context:', error)
+      console.error('Geolocation failed, using default HK:', error)
     }
 
-    const enhancedPrompt = prompt + ragContext
+    // Step 2: Fetch chatbot config for country
+    let config: any = null
+    try {
+      const configResponse = await fetch(`${backendUrl}/chat/config/${countryCode}`)
+      if (configResponse.ok) {
+        config = await configResponse.json()
+        console.log(`Loaded config for ${config.countryName} (${config.countryCode})`)
+      }
+    } catch (error) {
+      console.error('Failed to load country config, using defaults:', error)
+    }
+
+    // Extract settings from config or use defaults
+    const model = config?.model || process.env.OPENAI_MODEL || 'gpt-3.5-turbo'
+    const temperature = config?.temperature || 1
+    const maxTokens = config?.maxTokens || 4000
+    const systemPromptContent = config?.systemPrompt?.content || prompt
+    const ragEnabled = config?.rag?.enabled !== false // Default true
+    const ragTopK = config?.rag?.topK || 3
+    const ragThreshold = config?.rag?.threshold || 0.7
+
+    // Step 3: Query country-specific RAG if enabled
+    let ragContext = ''
+    if (ragEnabled) {
+      try {
+        const ragResponse = await fetch(
+          `${backendUrl}/documents/public/query-by-country/${countryCode}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: input,
+              topK: ragTopK,
+              threshold: ragThreshold
+            })
+          }
+        )
+
+        if (ragResponse.ok) {
+          const ragData = await ragResponse.json()
+          if (ragData.results && ragData.results.length > 0) {
+            console.log(
+              `RAG Results for ${countryCode}:`,
+              ragData.results.map((r: any) => ({
+                score: r.score,
+                text: r.chunkText.substring(0, 100) + '...'
+              }))
+            )
+
+            ragContext = '\n\nRelevant information from knowledge base:\n'
+            ragData.results.forEach((result: any, idx: number) => {
+              ragContext += `${idx + 1}. ${result.chunkText}\n\n`
+            })
+          } else {
+            console.log(`No RAG results found for ${countryCode}`)
+          }
+        }
+      } catch (error) {
+        console.error('RAG query failed, continuing without context:', error)
+      }
+    } else
+    {
+      console.log('RAG is disabled for this country.')
+    }
+
+    // Step 4: Build enhanced prompt with country system prompt + RAG context
+    const enhancedPrompt = systemPromptContent + ragContext
 
     const messagesWithHistory = [
       { content: enhancedPrompt, role: 'system' },
@@ -50,8 +108,17 @@ export async function POST(req: NextRequest) {
       { content: input, role: 'user' }
     ]
 
-    const { apiUrl, apiKey, model } = getApiConfig()
-    const stream = await getOpenAIStream(apiUrl, apiKey, model, messagesWithHistory)
+    // Step 5: Call OpenAI with country-specific settings
+    const { apiUrl, apiKey } = getApiConfig()
+    const stream = await getOpenAIStream(
+      apiUrl,
+      apiKey,
+      model,
+      messagesWithHistory,
+      temperature,
+      maxTokens
+    )
+
     return new NextResponse(stream, {
       headers: { 'Content-Type': 'text/event-stream' }
     })
@@ -98,7 +165,9 @@ const getOpenAIStream = async (
   apiUrl: string,
   apiKey: string,
   model: string,
-  messages: Message[]
+  messages: Message[],
+  temperature: number = 1,
+  maxTokens: number = 4000
 ) => {
   const encoder = new TextEncoder()
   const decoder = new TextDecoder()
@@ -111,10 +180,10 @@ const getOpenAIStream = async (
     method: 'POST',
     body: JSON.stringify({
       model: model,
-      max_tokens: 4000,
+      max_tokens: maxTokens,
       messages: messages,
       stream: true,
-      temperature: 1
+      temperature: temperature
     })
   })
 
