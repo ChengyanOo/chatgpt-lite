@@ -5,7 +5,6 @@ import clsx from 'clsx'
 import { AiOutlineCloseCircle } from 'react-icons/ai'
 import { BiMessageDetail } from 'react-icons/bi'
 import { HiOutlinePlus } from 'react-icons/hi'
-import { RiRobot2Line } from 'react-icons/ri'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatContext from './chatContext'
@@ -14,12 +13,10 @@ export const SideBar = () => {
   const {
     currentChatRef,
     chatList,
-    DefaultPersonas,
     toggleSidebar,
     onDeleteChat,
     onChangeChat,
     onCreateChat,
-    onOpenPersonaPanel,
     onToggleSidebar
   } = useContext(ChatContext)
 
@@ -58,7 +55,7 @@ export const SideBar = () => {
           <Button
             type="button"
             onClick={() => {
-              onCreateChat?.(DefaultPersonas[0])
+              onCreateChat?.()
               closeSidebarOnMobile()
             }}
             className="mb-6 bg-secondary hover:bg-secondary/80 border border-border text-foreground rounded-full py-2 px-4 flex items-center gap-2 transition-colors"
@@ -90,7 +87,7 @@ export const SideBar = () => {
                   <div className="flex items-center gap-3">
                     <BiMessageDetail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     <span className="truncate text-foreground text-sm">
-                      {chat.persona?.name || 'New Chat'}
+                      New Chat
                     </span>
                   </div>
                   <Button
@@ -108,18 +105,6 @@ export const SideBar = () => {
               ))}
             </div>
           </ScrollArea>
-          {/* Persona Store Button */}
-          <div className="mt-auto pt-4 border-t border-border">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenPersonaPanel?.('chat')}
-              className="w-full justify-start rounded-lg"
-            >
-              <RiRobot2Line className="w-4 h-4 mr-2" />
-              <span className="text-sm">Persona Store</span>
-            </Button>
-          </div>
         </div>
       </div>
     </>

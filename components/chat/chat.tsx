@@ -32,7 +32,6 @@ const postChatOrQuestion = async (chat: Chat, messages: ChatMessage[], input: st
   const url = '/api/chat'
 
   const data = {
-    prompt: chat?.persona?.prompt,
     messages: [...messages!],
     input
   }
