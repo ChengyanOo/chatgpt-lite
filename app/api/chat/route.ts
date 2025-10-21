@@ -15,8 +15,37 @@ export async function POST(req: NextRequest) {
       messages: Message[]
       input: string
     }
+
+    let ragContext = ''
+    const backendUrl = process.env.BACKEND_API_URL || 'http://localhost:3000'
+
+    try {
+      const ragResponse = await fetch(`${backendUrl}/documents/public/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: input,
+          topK: 3
+        })
+      })
+
+      if (ragResponse.ok) {
+        const ragData = await ragResponse.json()
+        if (ragData.results && ragData.results.length > 0) {
+          ragContext = '\n\nRelevant information from knowledge base:\n'
+          ragData.results.forEach((result: any, idx: number) => {
+            ragContext += `${idx + 1}. ${result.chunkText}\n\n`
+          })
+        }
+      }
+    } catch (error) {
+      console.error('RAG query failed, continuing without context:', error)
+    }
+
+    const enhancedPrompt = prompt + ragContext
+
     const messagesWithHistory = [
-      { content: prompt, role: 'system' },
+      { content: enhancedPrompt, role: 'system' },
       ...messages,
       { content: input, role: 'user' }
     ]
