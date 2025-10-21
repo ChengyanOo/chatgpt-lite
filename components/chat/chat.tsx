@@ -19,6 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatContext from './chatContext'
 import type { Chat, ChatMessage } from './interface'
 import { Message } from './message'
+import { ChatHistoryService } from '@/services/chatHistoryService'
 
 export interface ChatProps {}
 
@@ -43,6 +44,31 @@ const postChatOrQuestion = async (chat: Chat, messages: ChatMessage[], input: st
     },
     body: JSON.stringify(data)
   })
+}
+
+// Helper function to save chat history to backend
+const saveChatHistoryToBackend = async (
+  sessionId: string,
+  systemPrompt: string,
+  messages: ChatMessage[],
+  countryCode?: string
+) => {
+  try {
+    await ChatHistoryService.saveChatHistory({
+      sessionId,
+      systemPrompt,
+      messages,
+      countryCode,
+      metadata: {
+        source: 'chatgpt-lite',
+        timestamp: new Date().toISOString()
+      }
+    })
+    console.log('Chat history saved successfully')
+  } catch (error) {
+    console.error('Failed to save chat history:', error)
+    // Don't show error to user - this is background operation
+  }
 }
 
 const Chat = (props: ChatProps, ref: any) => {
@@ -111,13 +137,27 @@ const Chat = (props: ChatProps, ref: any) => {
                 done = true
               }
             }
-            setTimeout(() => {
+            setTimeout(async () => {
               conversation.current = [
                 ...conversation.current,
                 { content: resultContent, role: 'assistant' }
               ]
 
               setCurrentMessage('')
+
+              // Save chat history to backend after assistant responds
+              if (currentChatRef?.current?.id && conversation.current.length > 0) {
+                // Extract system prompt from the first message if it exists
+                const systemPrompt = 'You are a helpful assistant' // Default fallback
+                // Note: In a real scenario, you'd want to extract this from the API response
+                // or store it separately. For now, using a default.
+
+                await saveChatHistoryToBackend(
+                  currentChatRef.current.id,
+                  systemPrompt,
+                  conversation.current
+                )
+              }
             }, 1)
           } else {
             const result = await response.json()
